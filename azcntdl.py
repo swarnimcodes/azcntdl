@@ -16,6 +16,56 @@ def logger(loglevel: str, message: str) -> None:
     with open(logfile_path, 'a') as logf:
         logf.write(f"{logmsg}\n")
 
+# Should the file be downloaded/resumed/redownloaded?
+def dl_state(blob_client, dl_file_path) -> int:
+    blob_props = blob_client.get_blob_properties()
+    print(f"Blob Proerties:\n{blob_props}")
+    blob_size  = blob_props['size']
+    blob_name  = blob_props['name']
+    if os.path.exists(dl_file_path):
+        local_size = os.path.getsize(dl_file_path)
+
+        if local_size < blob_size:
+            # Complete partial downloads
+            logger(
+                loglevel = "INFO",
+                message  = f"Partial Download Detected. Resumed download of Blob: {blob_name} to {dl_file_path}"
+            )
+            with open(dl_file_path, 'ab') as localfile:
+                blob_client.download_blob(offset=local_size).readinto(localfile)               
+            logger(
+                loglevel = "INFO",
+                message  = f"Completely downloaded the partial downloaded file {blob_name}"
+            )
+        elif local_size == blob_size:
+            # Skip completed downloads
+            logger(
+                loglevel  = "INFO",
+                message   = f"Skipping download for {blob_name}. Local file size matches blob size.\n\n"
+            )
+
+        else:
+            # Delete unexpected download and redownload
+            os.remove(dl_file_path)
+            with open(dl_file_path, 'wb') as localfile:
+                blob_client.download_blob().readinto(localfile)
+            logger(
+                loglevel = "INFO",
+                message  = f"Downloaded Blob: {blob_name} to {dl_file_path}\n\n"
+            )
+                
+    else:
+        # Download as usual
+        with open(dl_file_path, 'wb') as localfile:
+            blob_client.download_blob().readinto(localfile)
+        logger(
+                loglevel = "INFO",
+                message  = f"Downloaded Blob: {blob_name} to {dl_file_path}\n\n"
+            )
+                    
+    return 0
+
+
 def main():
     # Iterate through each configuration
     for account_config in config:
@@ -62,8 +112,12 @@ def main():
                 blob_client = container_client.get_blob_client(blob.name)
                 dl_file_path = os.path.join(dl_path, blob.name)
                 os.makedirs(os.path.dirname(dl_file_path), exist_ok=True)
-                with open(dl_file_path, 'wb') as dl_file:
-                    dl_file.write(blob_client.download_blob().readall())
+                # Send details to another function
+                # That function will figure out what to do
+                status: int = dl_state(blob_client, dl_file_path)
+                print(f"Exit code: {status}")
+                # with open(dl_file_path, 'wb') as dl_file:
+                    # dl_file.write(blob_client.download_blob().readall())
 
                 print(f"Downloaded Blob {blob.name} to {dl_file_path}")
                 logger(
@@ -82,5 +136,6 @@ if __name__ == "__main__":
     main()
 
 # TODO: resume partial downloads
-# TODO: log file functionality
+# TODO: log file functionality -- In progress
 # TODO: mailing functionality
+# TODO: check for invalid filenames
