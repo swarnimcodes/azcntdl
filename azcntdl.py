@@ -154,7 +154,9 @@ def main() -> None:
 
         # Print the names of all containers for the current storage account
         for container in containers:
+            print("\n\n\n")
             print(f"Processing Container ({storage_account_name}):\t{container.name}")
+            print("\n\n\n")
             logger(
                 loglevel = "INFO",
                 message  = f"Processing Container ({storage_account_name}):\t{container.name}"
@@ -163,7 +165,7 @@ def main() -> None:
             blob_list = container_client.list_blobs()
 
             for blob in blob_list:
-                print(f"Evaluating Blob ({storage_account_name}):\t{blob.name}")
+                print(f"Evaluating Blob ({storage_account_name}):  {blob.name}")
                 logger(
                     loglevel  =  "INFO",
                     message   =  f"Evaluating Blob ({storage_account_name}):\t{blob.name}"
@@ -218,6 +220,7 @@ if __name__ == "__main__":
         if email_conditions:
             sendMail()
 
+    input("Press Enter to exit program...")
 
 # TODO: check for invalid filenames
 # DONE: zip log file and save it somewhere else
