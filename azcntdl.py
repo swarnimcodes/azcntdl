@@ -21,10 +21,10 @@ to_mail            =  config['global']['to_mail']
 sg_api             =  config['global']['sendgrid_api_key'] 
 
 email_conditions   =  []
-email_conditions.append("Test case scenario")
 
 # Temporary Log File Path
 logfile_path      = "./azcntdl.log"
+
 # Custom Logging
 def logger(loglevel: str, message: str) -> None:
     timestamp     = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -32,6 +32,7 @@ def logger(loglevel: str, message: str) -> None:
     
     with open(logfile_path, 'a') as logf:
         logf.write(f"{logmsg}\n")
+    
     return None
 
 
@@ -218,8 +219,8 @@ if __name__ == "__main__":
             sendMail()
 
 
-# DOING: mailing functionality
-# DOING: log file functionality
 # TODO: check for invalid filenames
 # DONE: zip log file and save it somewhere else
 # DONE: resume partial downloads -- done
+# DONE: mailing functionality
+# DONE: log file functionality
