@@ -121,6 +121,10 @@ def downloadBlob(blob_client, dl_file_path) -> None:
 
 
 def main() -> None:
+    logger(
+        loglevel = "INFO",
+        message  = "PROGRAM HAS STARTED EXECUTING\n\n"
+    )
     # Iterate through each configuration
     for account_config in storage_accounts:
         storage_account_name  =  account_config["storage_account_name"]
@@ -169,8 +173,18 @@ def main() -> None:
                 
                 # Send details to another function
                 # That function will figure out what to do
-                downloadBlob(blob_client, dl_file_path)
-
+                try:
+                    downloadBlob(blob_client, dl_file_path)
+                except Exception as e:
+                    blob_name = os.path.basename(dl_file_path)
+                    logger(
+                        loglevel   =   "ERROR",
+                        message    =   f"Exception: {str(e)}"
+                    )
+                    email_conditions.append(
+                        f"Failed to download {blob_name}"
+                        + f"Exception: {str(e)}"
+                    )
 
     print("All data downloaded. Program has finished executing.")
     logger(
@@ -194,7 +208,12 @@ if __name__ == "__main__":
             + f"Exception: {str(e)}"
         )
     finally:
-        compressLog()
+        try:
+            compressLog()
+        except Exception as e:
+            email_conditions.append(
+                f"Failed to save/compress log: Exception{str(e)}"
+            )
         if email_conditions:
             sendMail()
 
