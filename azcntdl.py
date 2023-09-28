@@ -3,23 +3,47 @@ import yaml
 from azure.storage.blob import BlobServiceClient
 from azure.identity import ClientSecretCredential
 import datetime
+import zipfile
 
 # Load the configuration from the YAML file
 with open("config.yaml", "r") as config_file:
     config = yaml.safe_load(config_file)
 
+# Parsing Config Variables
+global_config      =  config.get("global", {})
+logfile_directory  =  config['global']['logfile_directory']
+storage_accounts   =  config['storage_accounts']
+somevar            =  config['global']['some_other_variable']
+
+
+# Temporary Log File Path
+logfile_path      = "./azcntdl.log"
 # Custom Logging
 def logger(loglevel: str, message: str) -> None:
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    logfile_path = "azcntdl.log"
-    logmsg = f"{timestamp}  -  {loglevel}  -  {message}"
+    timestamp     = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    logmsg        = f"{timestamp}  -  {loglevel}  -  {message}"
+    
     with open(logfile_path, 'a') as logf:
         logf.write(f"{logmsg}\n")
+    return None
+
+# Zip up and store away the config file
+def compressLog() -> None:
+    zipts             = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")    
+    ziplogfile_name   = f"azure_datadump_log_{zipts}.zip" 
+    zipfile_path      = os.path.join(logfile_directory, ziplogfile_name)
+
+    with zipfile.ZipFile(zipfile_path, 'w', zipfile.ZIP_LZMA) as zipf:
+        zipf.write(logfile_path, os.path.basename(logfile_path))
+
+    os.remove(logfile_path)
+    
+    return None
+
 
 # Should the file be downloaded/resumed/redownloaded?
-def dl_state(blob_client, dl_file_path) -> int:
+def downloadBlob(blob_client, dl_file_path) -> None:
     blob_props = blob_client.get_blob_properties()
-    print(f"Blob Proerties:\n{blob_props}")
     blob_size  = blob_props['size']
     blob_name  = blob_props['name']
     if os.path.exists(dl_file_path):
@@ -62,30 +86,30 @@ def dl_state(blob_client, dl_file_path) -> int:
                 loglevel = "INFO",
                 message  = f"Downloaded Blob: {blob_name} to {dl_file_path}\n\n"
             )
-                    
-    return 0
+
+    return None
 
 
-def main():
+def main() -> None:
     # Iterate through each configuration
-    for account_config in config:
-        storage_account_name = account_config["storage_account_name"]
-        tenant_id = account_config["tenant_id"]
-        client_id = account_config["client_id"]
-        client_secret = account_config["client_secret"]
-        dl_path = account_config["dl_path"]
+    for account_config in storage_accounts:
+        storage_account_name  =  account_config["storage_account_name"]
+        tenant_id             =  account_config["tenant_id"]
+        client_id             =  account_config["client_id"]
+        client_secret         =  account_config["client_secret"]
+        dl_path               =  account_config["dl_path"]
 
         # Create a credential using the current account's client id, client secret, and tenant id
         credential = ClientSecretCredential(
-            tenant_id=tenant_id,
-            client_id=client_id,
-            client_secret=client_secret
+            tenant_id     =  tenant_id,
+            client_id     =  client_id,
+            client_secret =  client_secret
         )
 
         # Create a BlobServiceClient using the current storage account's name and the credential
         bsc = BlobServiceClient(
-            account_url=f"https://{storage_account_name}.blob.core.windows.net",
-            credential=credential
+            account_url =  f"https://{storage_account_name}.blob.core.windows.net",
+            credential  =  credential
         )
 
         os.makedirs(dl_path, exist_ok=True)
@@ -98,44 +122,49 @@ def main():
             print(f"Processing Container ({storage_account_name}):\t{container.name}")
             logger(
                 loglevel = "INFO",
-                message = f"Processing Container ({storage_account_name}):\t{container.name}"
+                message  = f"Processing Container ({storage_account_name}):\t{container.name}"
             )
             container_client = bsc.get_container_client(container.name)
             blob_list = container_client.list_blobs()
 
             for blob in blob_list:
-                print(f"Downloading Blob ({storage_account_name}):\t{blob.name}")
+                print(f"Evaluating Blob ({storage_account_name}):\t{blob.name}")
                 logger(
-                    loglevel = "INFO",
-                    message = f"Downloading Blob ({storage_account_name}):\t{blob.name}"
+                    loglevel  =  "INFO",
+                    message   =  f"Evaluating Blob ({storage_account_name}):\t{blob.name}"
                 )
-                blob_client = container_client.get_blob_client(blob.name)
-                dl_file_path = os.path.join(dl_path, blob.name)
+                blob_client   =  container_client.get_blob_client(blob.name)
+                dl_file_path  =  os.path.join(dl_path, blob.name)
                 os.makedirs(os.path.dirname(dl_file_path), exist_ok=True)
+                
                 # Send details to another function
                 # That function will figure out what to do
-                status: int = dl_state(blob_client, dl_file_path)
-                print(f"Exit code: {status}")
-                # with open(dl_file_path, 'wb') as dl_file:
-                    # dl_file.write(blob_client.download_blob().readall())
+                downloadBlob(blob_client, dl_file_path)
 
-                print(f"Downloaded Blob {blob.name} to {dl_file_path}")
-                logger(
-                    loglevel = "INFO",
-                    message = f"Downloaded Blob {blob.name} to {dl_file_path}"
-                )
 
-    print("All data downloaded.")
+    print("All data downloaded. Program has finished executing.")
     logger(
         loglevel = "INFO",
-        message = "All data downloaded!"
+        message  = "PROGRAM HAS FINISHED EXECUTING."
     )
+
+    return None
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger(
+            loglevel = "ERROR",
+            message  = f"Error ocurred while executing program\nException:\t{e}"
+        )
+    finally:
+        compressLog()
 
-# TODO: resume partial downloads
+
+# TODO: zip log file and save it somewhere else
 # TODO: log file functionality -- In progress
 # TODO: mailing functionality
 # TODO: check for invalid filenames
+# TODO: resume partial downloads -- done
