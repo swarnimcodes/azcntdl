@@ -1,9 +1,13 @@
 import os
 import yaml
-from azure.storage.blob import BlobServiceClient
-from azure.identity import ClientSecretCredential
 import datetime
 import zipfile
+
+
+from azure.storage.blob import BlobServiceClient
+from azure.identity import ClientSecretCredential
+from sendgrid import SendGridAPIClient, Mail
+
 
 # Load the configuration from the YAML file
 with open("config.yaml", "r") as config_file:
@@ -13,8 +17,11 @@ with open("config.yaml", "r") as config_file:
 global_config      =  config.get("global", {})
 logfile_directory  =  config['global']['logfile_directory']
 storage_accounts   =  config['storage_accounts']
-somevar            =  config['global']['some_other_variable']
+to_mail            =  config['global']['to_mail']
+sg_api             =  config['global']['sendgrid_api_key'] 
 
+email_conditions   =  []
+email_conditions.append("Test case scenario")
 
 # Temporary Log File Path
 logfile_path      = "./azcntdl.log"
@@ -27,6 +34,7 @@ def logger(loglevel: str, message: str) -> None:
         logf.write(f"{logmsg}\n")
     return None
 
+
 # Zip up and store away the config file
 def compressLog() -> None:
     zipts             = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")    
@@ -38,6 +46,28 @@ def compressLog() -> None:
 
     os.remove(logfile_path)
     
+    return None
+
+def sendMail() -> None:
+    from_mail = "noreply@mastersofterp.co.in"
+    ts_mail = datetime.datetime.now().strftime("%Y-%m-%d_%H.%M.%S")
+    subject = f"Azure Download Dump Notification {ts_mail}"
+    sg = SendGridAPIClient(api_key=sg_api)
+    email_content = "\n".join(f"{condition}" for condition in email_conditions)
+
+    message = Mail(
+        from_email           =   from_mail,
+        to_emails            =   to_mail,
+        subject              =   subject,
+        plain_text_content   =   email_content
+    )
+    
+    try:
+        response = sg.send(message)
+        if response.status_code == 202:
+            print(f"Email successfully sent to: {(mail for mail in to_mail)}")
+    except Exception as e:
+        print(f"{str(e)}")
     return None
 
 
@@ -159,12 +189,18 @@ if __name__ == "__main__":
             loglevel = "ERROR",
             message  = f"Error ocurred while executing program\nException:\t{e}"
         )
+        email_conditions.append(
+            "Error ocurred while executing Program"
+            + f"Exception: {str(e)}"
+        )
     finally:
         compressLog()
+        if email_conditions:
+            sendMail()
 
 
-# TODO: zip log file and save it somewhere else
-# TODO: log file functionality -- In progress
-# TODO: mailing functionality
+# DOING: mailing functionality
+# DOING: log file functionality
 # TODO: check for invalid filenames
-# TODO: resume partial downloads -- done
+# DONE: zip log file and save it somewhere else
+# DONE: resume partial downloads -- done
