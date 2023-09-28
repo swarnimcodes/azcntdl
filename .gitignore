@@ -1,5 +1,7 @@
 # custom
 *dldump/
+*.yaml
+*dl dump/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
