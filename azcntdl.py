@@ -1,4 +1,5 @@
 import os
+import re
 import yaml
 import datetime
 import zipfile
@@ -70,6 +71,19 @@ def sendMail() -> None:
     except Exception as e:
         print(f"{str(e)}")
     return None
+
+# Check if filename is illegal. If yes then mail.
+def checkIllegalFilename(filename) -> bool:
+    # Exclude files with names such as "<", ">", ":", """, "|", "?", "*"
+    illegal_pattern = r'[<>:"|?*\x00-\x1F]'
+    if re.search(illegal_pattern, filename):
+        # Skip downloading file
+        email_conditions.append(f"Illegal Filename found {filename}")
+        return True
+    else:
+        # The file should be downloaded for this condition
+        return False
+
 
 
 # Should the file be downloaded/resumed/redownloaded?
@@ -152,17 +166,25 @@ def main() -> None:
         # List all containers in the storage account
         containers = bsc.list_containers()
 
-        # Print the names of all containers for the current storage account
         for container in containers:
+
             print("\n\n\n")
             print(f"Processing Container ({storage_account_name}):\t{container.name}")
             print("\n\n\n")
+
             logger(
                 loglevel = "INFO",
                 message  = f"Processing Container ({storage_account_name}):\t{container.name}"
             )
             container_client = bsc.get_container_client(container.name)
             blob_list = container_client.list_blobs()
+            
+            if not blob_list:
+                print(f"No items in {container.name}\n\n\n")
+                logger(
+                    loglevel  = "ERROR",
+                    message   = f"No items found in {container.name}"
+                )
 
             for blob in blob_list:
                 print(f"Evaluating Blob ({storage_account_name}):  {blob.name}")
@@ -171,23 +193,31 @@ def main() -> None:
                     message   =  f"Evaluating Blob ({storage_account_name}):\t{blob.name}"
                 )
                 blob_client   =  container_client.get_blob_client(blob.name)
-                dl_file_path  =  os.path.join(dl_path, blob.name)
+                dl_file_path  =  os.path.join(dl_path, container.name, blob.name)
                 os.makedirs(os.path.dirname(dl_file_path), exist_ok=True)
                 
                 # Send details to another function
                 # That function will figure out what to do
-                try:
-                    downloadBlob(blob_client, dl_file_path)
-                except Exception as e:
-                    blob_name = os.path.basename(dl_file_path)
+                if checkIllegalFilename(blob.name) == False:
+                    try:
+                        downloadBlob(blob_client, dl_file_path)
+                    except Exception as e:
+                        blob_name = os.path.basename(dl_file_path)
+                        logger(
+                            loglevel   =   "ERROR",
+                            message    =   f"Exception: {str(e)}"
+                        )
+                        email_conditions.append(
+                            f"Failed to download {blob_name}"
+                            + f"Exception: {str(e)}"
+                        )
+                else:
+                    print(f"Illegal filename found: {blob.name}\n\n\n")
                     logger(
-                        loglevel   =   "ERROR",
-                        message    =   f"Exception: {str(e)}"
+                        loglevel   = "ERROR",
+                        message    = f"Illegal Filename found: {dl_file_path}. Skipping Download!"
                     )
-                    email_conditions.append(
-                        f"Failed to download {blob_name}"
-                        + f"Exception: {str(e)}"
-                    )
+                    
 
     print("All data downloaded. Program has finished executing.")
     logger(
