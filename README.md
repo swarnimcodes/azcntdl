@@ -1,6 +1,12 @@
 # azcntdl
 Download data from your Azure Storage accounts.
 
+## Features
+- Downloading all containers in your storage account.
+- Skipping already downloaded files/blobs
+- Resume partially downloaded downloads seamlessly
+- Mailing functionality using SendGrid in case of errors
+
 ## Sample Config
 Place the config file in the same directory from where you are executing the program.
 Or else, change the code to suit your needs.
