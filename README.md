@@ -2,6 +2,8 @@
 Download data from your Azure Storage accounts.
 
 ## Sample Config
+Place the config file in the same directory from where you are executing the program.
+Or else, change the code to suit your needs.
 
 ```yaml
 # CONFIG FILE
